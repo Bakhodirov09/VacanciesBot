@@ -238,6 +238,7 @@ async def accept_handler(call: types.CallbackQuery, state: FSMContext):
 🇺🇿 Telegram: <a href='tg://user?id={call.message.chat.id}'>{data['full_name']}</a>
 📍 Hozir Toshkentdamisiz: {'Ha' if data.get('tashkent', False) else "Yo'q"}
 💼 Kasbi: {data['job']}
+🧑‍💻 Texnologiyalar: {data['technologies']}
 🕰 Murojaat qilish vaqti: {data['time']}
 🔗 Portfolio: {data['portfolio']}
 """
