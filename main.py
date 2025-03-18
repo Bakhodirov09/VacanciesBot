@@ -15,11 +15,18 @@ dp = Dispatcher(bot=bot, storage=storage)
 class AdminMessageState(StatesGroup):
     text = State()
 
+cancel = ReplyKeyboardMarkup(
+    keyboard=[
+        [
+            KeyboardButton(text='❌ Bekor qilish')
+        ]
+    ], resize_keyboard=True
+)
 
 register = ReplyKeyboardMarkup(
     keyboard=[
         [
-            KeyboardButton(text="🪪 Ro'yxatdan O'tish")
+            KeyboardButton(text="🪪 Vakansiya yuborish")
         ]
     ], resize_keyboard=True
 )
@@ -50,6 +57,11 @@ yes_no = InlineKeyboardMarkup(
     ]
 )
 
+@dp.message_handler(state='*', text='❌ Bekor qilish')
+async def cancel_btn_handler(message: types.Message, state: FSMContext):
+    await message.answer(text="✅ Bekor qilindi. Ma'lumotlarni qayta kiritish uchun '🪪 Vakansiya yuborish' tugmasini qayta bosib yuborishingiz mumkin!", reply_markup=register)
+    await state.set_state('register')
+
 
 @dp.message_handler(commands='start')
 async def start_command(message: types.Message, state: FSMContext):
@@ -65,18 +77,19 @@ async def start_command(message: types.Message, state: FSMContext):
                 except:
                     continue
 
+    text = ""
+
     if message.chat.id in user_ids:
-        await message.answer("Siz ro'yxatdan o'tgansiz! 😊")
+        text = "😊 Assalomu alaykum. Siz botimizdan vakansiya yuborgansiz, ammo yana yuborishni istasangiz '🪪 Vakansiya yuborish' tugmasini bosing!"
     else:
-        await message.answer(
-            text=f"Assalomu alaykum {message.from_user.first_name},\nBotimizga xush kelibsiz!\n \nRo'yxatdan o'tish tugmasini bosing 👇",
-            reply_markup=register)
-        await state.set_state('register')
+        text = f"😊 Assalomu alaykum {message.from_user.first_name},\nBotimizga xush kelibsiz!\n \nVakansiya yuborish uchun '🪪 Vakansiya yuborish' tugmasini bosing 👇"
+    await message.answer(text=text, reply_markup=register)
+    await state.set_state('register')
 
 
-@dp.message_handler(state='register', text="🪪 Ro'yxatdan O'tish")
+@dp.message_handler(state='register', text="🪪 Vakansiya yuborish")
 async def register_handler(message: types.Message, state: FSMContext):
-    await message.answer(text="✍️ Ism, Familiyangizni kiriting:", reply_markup=ReplyKeyboardRemove())
+    await message.answer(text="✍️ Ism, Familiyangizni kiriting:", reply_markup=cancel)
     await state.set_state('full_name')
 
 
@@ -108,30 +121,32 @@ async def age_handler(message: types.Message, state: FSMContext):
     except ValueError:
         await message.answer(text='❌ Iltimos yoshingizni faqat raqamda kiriting!')
 
-
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-
-
 @dp.message_handler(state='phone_number', content_types=types.ContentType.ANY)
 async def phone_number_handler(message: types.Message, state: FSMContext):
+    phone_number = ""
     if message.content_type == types.ContentType.CONTACT:
         phone_number = message.contact.phone_number
         if not phone_number.startswith('+'):
             phone_number = f"+{phone_number}"
+    else:
+        if len(message.text) == 9 or len(message.text) == 13:
+            phone_number = message.text
+        else:
+            await message.answer(text='‼️ Kechirasiz, raqamni qolda kiritishda ushbu 2 usuldan foydalanish kerak!\n1. <code>+998901234567</code>\n2. 901234567')
+    if phone_number:
         await state.update_data({
             'phone_number': phone_number
         })
-        await message.answer(text="📁 Resume PDF shaklida yuboring!", reply_markup=ReplyKeyboardRemove())
-        await state.set_state('resume')
-    else:
-        keyboard = ReplyKeyboardMarkup(resize_keyboard=True).add(
-            KeyboardButton("📱 Telefon raqamni yuborish", request_contact=True)
-        )
-        await message.answer(
-            text="❌ Iltimos, Telefon raqamingizni faqat pastdagi tugma orqali yuboring!",
-            reply_markup=keyboard
-        )
+        await message.answer(text="✍🏻 Iltimos o'zingiz ishlay oladigan Texnologiyalarni yuboring!", reply_markup=cancel)
+        await state.set_state('technologies')
 
+@dp.message_handler(state='technologies')
+async def technologies_handler(message: types.Message, state: FSMContext):
+    await state.update_data({
+        'technologies': message.text
+    })
+    await message.answer(text="📍 Siz ayni damda Toshkentdamisiz?", reply_markup=yes_no)
+    await state.set_state('tashkent')
 
 @dp.message_handler(state='resume', content_types=types.ContentType.DOCUMENT)
 async def resume_handler(message: types.Message, state: FSMContext):
@@ -201,9 +216,9 @@ async def portfolio_handler(message: types.Message, state: FSMContext):
 🇺🇿 Telegram: @{message.from_user.username}
 📍 Hozir Toshkentdamisiz: {'Ha' if data.get('tashkent', False) else "Yo'q"}
 💼 Kasbi: {data['job']}
+🧑‍💻 Texnologiyalar: {data['technologies']}
 🕰 Murojaat qilish vaqti: {data['time']}
 🔗 Portfolio: {data['portfolio']}
-📁 Resume: Tepada
 
 ‼️ Ushbu ma'lumotlaringiz tasdiqlaysizmi?
 """
@@ -220,13 +235,13 @@ async def accept_handler(call: types.CallbackQuery, state: FSMContext):
 👨‍💼 Xodim: {data['full_name']}
 🎂 Yosh: {data['age']}
 📞 Aloqa: {data['phone_number']}
-🇺🇿 Telegram: @{call.from_user.username}
+🇺🇿 Telegram: <a href='tg://user?id={call.message.chat.id}'>{data['full_name']}</a>
 📍 Hozir Toshkentdamisiz: {'Ha' if data.get('tashkent', False) else "Yo'q"}
 💼 Kasbi: {data['job']}
 🕰 Murojaat qilish vaqti: {data['time']}
 🔗 Portfolio: {data['portfolio']}
 """
-        await dp.bot.send_document(chat_id=CHANNEL_ID, document=data['resume'], caption=user_data)
+        await dp.bot.send_message(chat_id=CHANNEL_ID, text=user_data, parse_mode='HTML')
         await call.message.answer(text="✅ Ma'lumotlaringiz kanalga yuborildi. Tez orada aloqaga chiqamiz! :)")
         with open('users.txt', 'a') as writer:
             writer.write(f"{call.message.chat.id}_{data['full_name']}\n")
